@@ -17,7 +17,7 @@ from sqlmodel import Session, select, SQLModel
 # Import your local database engine and tables
 from models import engine, Patient, Medicine
 
-from vision import verify_prescription_with_gemini
+# from vision import verify_prescription_with_gemini # Removed to prevent deployment error
 
 # Import your custom tools and agents
 from tools import check_patient_history, check_inventory_and_policy, trigger_fulfillment_webhook, analyze_historical_demand, fetch_live_environmental_threats
@@ -76,16 +76,40 @@ import os
 
 # 1. CONFIGURE GEMINI
 # Replace with your actual Gemini API Key
-GEMINI_API_KEY = "GEMINI_API_KEY" 
-genai.configure(api_key=GEMINI_API_KEY)
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "YOUR_GEMINI_API_KEY_HERE")
+if GEMINI_API_KEY:
+    genai.configure(api_key=GEMINI_API_KEY)
 vision_model = genai.GenerativeModel('gemini-1.5-flash')
+
+def verify_prescription_with_gemini(image_bytes, mime_type="image/jpeg"):
+    """Reads a prescription image and extracts the medical data using Gemini."""
+    if GEMINI_API_KEY == "YOUR_GEMINI_API_KEY_HERE" or not GEMINI_API_KEY:
+        return "System Error: GEMINI_API_KEY is missing from the .env file."
+        
+    prompt = """
+        You are a medical data extraction AI. Analyze this prescription image.
+        Extract and format the response exactly like this:
+        [VERIFIED PRESCRIPTION]
+        Patient Name: <name>
+        Prescribed Medicine: <medicine>
+        Doctor Approved: Yes
+        """
+    try:
+        response = vision_model.generate_content([
+            prompt,
+            {"mime_type": mime_type, "data": image_bytes}
+        ])
+        return response.text
+    except Exception as e:
+        return f"Error reading prescription: {str(e)}"
 
 # --- 3. VISION & UPLOAD ROUTE (REAL AI EXTRACTION) ---
 @app.post("/upload")
 async def upload_rx(file: UploadFile = File(...)):
     """Reads prescription images using Gemini 2.5."""
     contents = await file.read()
-    extracted_data = verify_prescription_with_gemini(contents)
+    mime_type = file.content_type if hasattr(file, 'content_type') and file.content_type else "image/jpeg"
+    extracted_data = verify_prescription_with_gemini(contents, mime_type)
     return {"status": "success", "extracted_text": extracted_data}
 
 # --- 4. CORE CHAT & AGENTIC ROUTE ---
