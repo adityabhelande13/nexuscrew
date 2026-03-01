@@ -1,0 +1,11 @@
+fastapi
+uvicorn
+crewai[tools]
+langchain-groq
+langsmith
+sqlmodel
+python-dotenv
+google-generativeai
+python-multipart
+requests
+litellm
